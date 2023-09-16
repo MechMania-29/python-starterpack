@@ -7,6 +7,7 @@ import textwrap
 import traceback
 import engine
 import sys
+from game.character.action.ability_action import AbilityAction
 from game.character.action.attack_action import AttackAction
 from game.character.action.move_action import MoveAction
 from game.character.character_class_type import CharacterClassType
@@ -113,6 +114,22 @@ def serve(port: int):
                     output = strategy.decide_attacks(possible_attacks, game_state)
 
                     response = json.dumps(list(map(AttackAction.serialize, output)))
+
+                    client.write(response)
+                elif type == "ABILITY_PHASE":
+                    raw_possible_abilities: dict = message["possibleAbilities"]
+                    possible_abilities = dict()
+
+                    for [id, possibles] in raw_possible_abilities.items():
+                        actions: list[AbilityAction] = list()
+                        for possible in possibles:
+                            actions.append(AbilityAction.deserialize(possible))
+
+                        possible_abilities[id] = actions
+
+                    output = strategy.decide_abilities(possible_abilities, game_state)
+
+                    response = json.dumps(list(map(AbilityAction.serialize, output)))
 
                     client.write(response)
                 elif type == "FINISH":

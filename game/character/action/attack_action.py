@@ -28,7 +28,7 @@ class AttackAction:
                 AttackActionType[blob["type"]],
             )
         except:
-            print("Failed to validate MoveAction json")
+            print("Failed to validate AttackAction json")
             raise
 
         return action

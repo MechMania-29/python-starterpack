@@ -1,4 +1,5 @@
 import random
+from game.character.action.ability_action import AbilityAction
 from game.character.action.attack_action import AttackAction
 from game.character.action.move_action import MoveAction
 from game.character.character_class_type import CharacterClassType
@@ -51,5 +52,18 @@ class RandomStrategy(Strategy):
             if len(attacks) == 0:
                 continue  # random.choice does not support an empty list of options.
             choices.append(random.choice(attacks))
+
+        return choices
+
+    def decide_abilities(
+        self, possible_abilities: dict[str, list[AbilityAction]], game_state: GameState
+    ) -> list[MoveAction]:
+        choices = []
+
+        for [character_id, abilities] in possible_abilities.items():
+            #  NOTE: You will have to handle the case where there is no move to be made, such as when stunned
+            if len(abilities) == 0:
+                continue  # random.choice does not support an empty list of options.
+            choices.append(random.choice(abilities))
 
         return choices
