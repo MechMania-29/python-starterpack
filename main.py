@@ -9,6 +9,7 @@ import engine
 import sys
 from game.character.action.attack_action import AttackAction
 from game.character.action.move_action import MoveAction
+from game.character.character_class_type import CharacterClassType
 from game.game_state import GameState
 
 from network.client import Client
@@ -51,17 +52,38 @@ def serve(port: int):
                 is_zombie = received_message.is_zombie
                 type = received_message.type
                 message = received_message.message
+                turn = message["turn"]
 
-                if type != "FINISH":
+                if type != "CHOOSE_CLASSES_PHASE" and type != "FINISH":
                     game_state = GameState.deserialize(message)
 
-                    print(
-                        f"[TURN {game_state.turn}]: Getting your bot's response to {type}..."
-                    )
-
+                if type != "FINISH":
+                    print(f"[TURN {turn}]: Getting your bot's response to {type}...")
                     strategy = choose_strategy(is_zombie)
 
-                if type == "MOVE_PHASE":
+                if type == "CHOOSE_CLASSES_PHASE":
+                    raw_possible_classes: list = message["choices"]
+                    possible_classes: list[CharacterClassType] = list(
+                        map(lambda x: CharacterClassType[x], raw_possible_classes)
+                    )
+                    num_to_pick = message["numToPick"]
+                    max_per_same_class = message["maxPerSameClass"]
+
+                    raw_output = strategy.decide_character_classes(
+                        possible_classes, num_to_pick, max_per_same_class
+                    )
+
+                    output = dict()
+
+                    for [class_type, num] in raw_output.items():
+                        output[class_type.value] = num
+
+                    response = json.dumps(output)
+
+                    print(response)
+
+                    client.write(response)
+                elif type == "MOVE_PHASE":
                     raw_possible_moves: dict = message["possibleMoves"]
                     possible_moves = dict()
 
@@ -108,7 +130,7 @@ def serve(port: int):
                 else:
                     raise RuntimeError(f"Unknown phase type {type}")
 
-                print(f"[TURN {game_state.turn}]: Send response to {type} to server!")
+                print(f"[TURN {turn}]: Send response to {type} to server!")
 
             except Exception as e:
                 print(f"Something went wrong running your bot: {e}")
