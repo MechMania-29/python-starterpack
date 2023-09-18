@@ -1,10 +1,13 @@
 import argparse
-from dataclasses import asdict
+from datetime import datetime
 from enum import Enum
 import json
-import socket
-import textwrap
+import os
+import subprocess
+import threading
+import time
 import traceback
+from typing import IO
 import engine
 import sys
 from game.character.action.ability_action import AbilityAction
@@ -17,6 +20,9 @@ from network.client import Client
 from network.received_message import ReceivedMessage
 from strategy.choose_strategy import choose_strategy
 
+raw_debug_env = os.environ.get("DEBUG")
+DEBUG = raw_debug_env == "1" or raw_debug_env == "true"
+
 
 # A argument parser that will also print help upon error
 class HelpArgumentParser(argparse.ArgumentParser):
@@ -28,12 +34,125 @@ class HelpArgumentParser(argparse.ArgumentParser):
 
 class RunOpponent(Enum):
     SELF = "self"
-    COMPUTER = "computer"
+    HUMAN_COMPUTER = "humanComputer"
+    ZOMBIE_COMPUTER = "zombieComputer"
+
+
+COMMANDS_FOR_OPPONENT: dict[RunOpponent, list[tuple[str, str]]] = {
+    RunOpponent.SELF: [
+        ("Engine", "java -jar engine/engine.jar 9001 9002"),
+        ("Human", "python main.py serve 9001"),
+        ("Zombie", "python main.py serve 9002"),
+    ],
+    RunOpponent.HUMAN_COMPUTER: [
+        ("Engine", "java -jar engine/engine.jar 0 9002"),
+        ("Zombie", "python main.py serve 9002"),
+    ],
+    RunOpponent.ZOMBIE_COMPUTER: [
+        ("Engine", "java -jar engine/engine.jar 9001 0"),
+        ("Human", "python main.py serve 9001"),
+    ],
+}
 
 
 def run(opponent: RunOpponent):
-    print(f"Running against opponent {opponent.value}")
     engine.update_if_not_latest()
+
+    print(
+        f"Running against opponent {opponent.value}... (might take a minute, please wait)"
+    )
+
+    info = COMMANDS_FOR_OPPONENT[opponent]
+    prefixes = list(map(lambda x: x[0], info))
+    commands = list(map(lambda x: x[1], info))
+
+    now = datetime.now()
+    formatted_now = now.strftime("%Y_%m_%d__%H_%M_%S")
+    gamelog_name = f"gamelog_{formatted_now}"
+    output_loc = f"gamelogs/{gamelog_name}.json"
+    new_env = os.environ.copy()
+    new_env["OUTPUT"] = output_loc
+
+    # Launch each command in a separate terminal
+    processes: list[subprocess.Popen] = []
+    for command in commands:
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            bufsize=1,
+            text=True,
+            env=new_env,
+        )
+        processes.append(process)
+
+    outputs: list[list[tuple[bool, int, int, str]]] = []
+
+    def run_and_output(io: IO, i: int, is_err: True):
+        list = []
+        for line in iter(io.readline, ""):
+            line: str
+            list.append((is_err, time.time_ns(), i, line.strip()))
+
+        outputs.append(list)
+
+    threads: list[threading.Thread] = []
+    for i in range(len(processes) - 1, -1, -1):
+        process = processes[i]
+
+        thread_stdout = threading.Thread(
+            target=run_and_output, args=(process.stdout, i, False)
+        )
+        thread_stderr = threading.Thread(
+            target=run_and_output, args=(process.stderr, i, True)
+        )
+        thread_stdout.start()
+        thread_stderr.start()
+        threads.append(thread_stdout)
+        threads.append(thread_stderr)
+
+    for thread in threads:
+        thread.join()
+
+    all = []
+
+    for output in outputs:
+        for data in output:
+            all.append(data)
+
+    all.sort(key=lambda x: x[1])
+
+    last = -1
+
+    for data in all:
+        is_err, time_ns, i, line = data
+
+        if i != last:
+            last = i
+            print(f"[{prefixes[i]}]:")
+
+        print(f"\t{line}")
+
+    files = []
+
+    prefix = f"logs/{gamelog_name}/"
+    if not os.path.exists(prefix):
+        os.makedirs(prefix, exist_ok=True)
+
+    for i in range(len(processes)):
+        filename = f"{prefix}{prefixes[i].lower()}.txt"
+        files.append(filename)
+        output = list(map(lambda x: x[3], filter(lambda x: x[2] == i, all)))
+
+        with open(filename, "w") as file:
+            file.write("\n".join(output))
+
+    print(
+        "\nNote that output above may not be in the exact order it was output, due to terminal limitations.\n"
+        + f"For separated ordered output, see: {', '.join(files)}"
+    )
 
 
 def serve(port: int):
@@ -59,9 +178,10 @@ def serve(port: int):
                     game_state = GameState.deserialize(message)
 
                 if phase != "FINISH":
-                    print(
-                        f"[TURN {turn}]: Getting your bot's response to {phase} phase..."
-                    )
+                    if DEBUG:
+                        print(
+                            f"[TURN {turn}]: Getting your bot's response to {phase} phase..."
+                        )
                     strategy = choose_strategy(is_zombie)
 
                 if phase == "CHOOSE_CLASSES":
@@ -176,11 +296,12 @@ def serve(port: int):
                 else:
                     raise RuntimeError(f"Unknown phase type {phase}")
 
-                print(f"[TURN {turn}]: Send response to {phase} phase to server!")
+                if DEBUG:
+                    print(f"[TURN {turn}]: Send response to {phase} phase to server!")
 
             except Exception as e:
-                print(f"Something went wrong running your bot: {e}")
-                traceback.print_exc()
+                print(f"Something went wrong running your bot: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 client.write("null")
 
 

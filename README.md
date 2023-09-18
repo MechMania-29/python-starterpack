@@ -14,13 +14,7 @@ Also, you'll need python3, and you can make sure you have it by running:
 python --version
 ```
 
-If you have python2 as well, you may have to use python3 instead:
-
-```sh
-python3 --version
-```
-
-Make sure you use the right one so you're using 3, or things will break!
+Make sure you're using 3, or things will break!
 
 ## Usage
 
@@ -35,10 +29,16 @@ To run your client, you can use the following commands:
 python main.py run self
 ```
 
-### Run your bot against the computer
+### Run your bot against the human computer (your bot plays zombies)
 
 ```sh
-python main.py run computer
+python main.py run humanComputer
+```
+
+### Run your bot against the zombie computer (your bot plays humans)
+
+```sh
+python main.py run zombieComputer
 ```
 
 ### Serve your bot to a port
