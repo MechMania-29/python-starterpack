@@ -27,9 +27,10 @@ class SimpleHumanStrategy(Strategy):
         # Selecting 6 Marksmen, 6 Medics, and 4 Traceurs
         # The other 4 humans will be regular class
         choices = {
-            CharacterClassType.MARKSMAN: 6,
-            CharacterClassType.MEDIC: 6,
-            CharacterClassType.TRACEUR: 4,
+            CharacterClassType.MARKSMAN: 5,
+            CharacterClassType.MEDIC: 5,
+            CharacterClassType.TRACEUR: 5,
+            CharacterClassType.DEMOLITIONIST: 1
         }
         return choices
 
