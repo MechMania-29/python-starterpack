@@ -15,6 +15,14 @@ ignore_list = [
     "README.md",
     "build.py",
     "engine.py",
+    "gamelogs",
+    "gamelogs/*",
+    "debuglog",
+    "debuglog/*",
+    "debuglogs",
+    "debuglogs/*",
+    "logs",
+    "logs/*",
 ]
 
 

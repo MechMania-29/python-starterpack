@@ -29,8 +29,8 @@ class SimpleHumanStrategy(Strategy):
         choices = {
             CharacterClassType.MARKSMAN: 5,
             CharacterClassType.MEDIC: 5,
-            CharacterClassType.TRACEUR: 5,
-            CharacterClassType.DEMOLITIONIST: 1
+            CharacterClassType.TRACEUR: 4,
+            CharacterClassType.DEMOLITIONIST: 1,
         }
         return choices
 
